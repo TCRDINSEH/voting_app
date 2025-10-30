@@ -7,20 +7,24 @@ pipeline {
         REPO = "votingapp"
         IMAGE_BASE = "us-central1-docker.pkg.dev/${GCP_PROJECT}/${REPO}"
         KUBECONFIG = credentials('kubeconfig')
-    }
+        CLUSTER_NAME = "jenkins-tfgke-cluster"
+        ZONE="us-central1-a"
+          }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/TCRDINSEH/voting-app.git'
+                git branch: 'main', url: 'https://github.com/TCRDINSEH/vote.git'
+                credentialsId: "${GIT_CREDENTIALS}"
             }
         }
 
         stage('Authenticate with GCP') {
             steps {
-                script {
+                withCredentials([file(credentialsId: "${GCP_CREDENTIALS}", variable: 'GCP_KEYFILE')]) {
                     sh '''
-                    gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+                    echo "🔐 Authenticating to GCP..."
+                    gcloud auth activate-service-account --key-file=$GCP_KEYFILE
                     gcloud auth configure-docker ${REGION}-docker.pkg.dev -q
                     '''
                 }
@@ -50,6 +54,7 @@ pipeline {
                     // Write kubeconfig from Jenkins secret
                     writeFile file: 'config', text: KUBECONFIG
                     sh '''
+                    gcloud container clusters get-credentials $CLUSTER_NAME --zone $ZONE --project $GCP_PROJECT
                     export KUBECONFIG=config
 
                     echo "🔁 Updating Kubernetes manifests..."
